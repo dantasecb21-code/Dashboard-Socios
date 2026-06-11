@@ -6,6 +6,8 @@ const FINANCEIRO_CACHE_KEY = "query-cache:financeiro-sheets";
 
 export function useFinanceiro() {
   const cached = readPersistedQuery<FinanceiroResult>(FINANCEIRO_CACHE_KEY);
+  // Ignora cache se não tiver saldoAtual (dado novo que ainda não estava em cache)
+  const validCache = cached && typeof (cached.data as FinanceiroResult)?.saldoAtual === "number" ? cached : undefined;
 
   return useQuery<FinanceiroResult>({
     queryKey: ["financeiro-sheets"],
@@ -16,9 +18,9 @@ export function useFinanceiro() {
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
-    refetchOnMount: cached ? false : "always",
-    initialData: cached?.data,
-    initialDataUpdatedAt: cached?.updatedAt,
+    refetchOnMount: validCache ? false : "always",
+    initialData: validCache?.data,
+    initialDataUpdatedAt: validCache?.updatedAt,
     retry: 1,
   });
 }
