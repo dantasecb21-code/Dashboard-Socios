@@ -58,7 +58,9 @@ Deno.serve(async (req) => {
     clearTimeout(timeoutId);
     const body = await res.text();
 
-    if (res.ok) {
+    // Não cacheia respostas de erro (ex: Unauthorized do Apps Script)
+    const isErrorBody = body.includes('"error"');
+    if (res.ok && !isErrorBody) {
       cache = { body, status: res.status, at: Date.now() };
     } else if (cache) {
       // upstream falhou, devolve stale
