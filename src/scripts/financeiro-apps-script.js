@@ -44,7 +44,7 @@ function doGet(e) {
     });
   }
 
-  var costTotalSheet = ss.getSheetByName("COST TOTAL");
+  var costTotalSheet = ss.getSheetByName("Cost total");
   var saldoAtual = 0;
   if (costTotalSheet) {
     var costTotalData = costTotalSheet.getDataRange().getValues();
