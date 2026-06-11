@@ -89,7 +89,6 @@ const Financeiro = () => {
   const navigate = useNavigate();
   const { data: finData, isLoading, isFetching, refetch } = useFinanceiro();
   const allClients = finData?.clients ?? [];
-  const saldoAtual = finData?.saldoAtual ?? 0;
 
   const filtered = useMemo(() => {
     let list = allClients;
@@ -132,8 +131,6 @@ const Financeiro = () => {
   const totalClients = filtered.length;
   const activeRevenueStatuses = ["PAGO", "NOVO CLIENTE", "A PAGAR", "ATRASADO", "ATRASO DO MÊS", "SINAL", "ACORDO"];
   const paidClients = filtered.filter(c => activeRevenueStatuses.includes(c.situacao));
-  const aPagarGeral = allClients.filter(c => c.situacao === "A PAGAR").reduce((sum, c) => sum + c.valorFixo, 0);
-  const faltaReceita = aPagarGeral - saldoAtual;
 
   // Usa resumos da planilha quando sem filtro de busca
   const summaries = finData?.summaries;
@@ -322,27 +319,6 @@ const Financeiro = () => {
               <KpiCard title="Inativos" value={inactive} subtitle="Cancelados + inativos" icon={Ban} delay={5} />
             </div>
 
-            {/* KPIs Saldo Atual + Falta de Receita — apenas na aba GERAL */}
-            {region === "GERAL" && (
-              <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 sm:gap-3 lg:gap-4">
-                <KpiCard
-                  title="Saldo Atual"
-                  value={formatCurrencyBR(saldoAtual)}
-                  subtitle="COST TOTAL — linha 25"
-                  icon={Wallet}
-                  variant="success"
-                  delay={6}
-                />
-                <KpiCard
-                  title="Falta de Receita"
-                  value={formatCurrencyBR(faltaReceita)}
-                  subtitle={`A Pagar (${formatCurrencyBR(aPagarGeral)}) − Saldo Atual`}
-                  icon={TrendingDown}
-                  variant={faltaReceita > 0 ? "destructive" : "success"}
-                  delay={7}
-                />
-              </div>
-            )}
 
             {/* Previsão de Receita por Período (dia de pagamento) */}
             <div className="glass-card p-3 sm:p-4 lg:p-5 opacity-0 animate-fade-in" style={{ animationDelay: "0.15s" }}>

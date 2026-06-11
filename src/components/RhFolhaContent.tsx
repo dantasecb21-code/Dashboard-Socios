@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRhFolha } from "@/hooks/useRhFolha";
 import { useRhSaidas } from "@/hooks/useRhSaidas";
+import { useFinanceiro } from "@/hooks/useFinanceiro";
 import { formatCurrencyBR } from "@/data/financeiro";
 import KpiCard from "./KpiCard";
 import {
@@ -28,6 +29,8 @@ const PRESETS: { id: Preset; label: string; range: [number, number] | null }[] =
 const RhFolhaContent = () => {
   const { data, isLoading } = useRhFolha();
   const { data: saidasData } = useRhSaidas();
+  const { data: finData } = useFinanceiro();
+  const saldoAtual = finData?.saldoAtual ?? 0;
   const items: FolhaItem[] = useMemo(() => {
     const main = data?.items ?? [];
     // Se o fetch completo ainda não trouxe SAIDA, completa com o fetch rápido
@@ -147,6 +150,26 @@ const RhFolhaContent = () => {
         <KpiCard title="A Pagar" value={formatCurrencyBR(kpis.aPagar)} subtitle="Pendente" icon={Clock} variant="info" delay={4} />
         <KpiCard title="Atrasado" value={formatCurrencyBR(kpis.atrasado)} subtitle={`${kpis.qtdAtrasado} item(ns)`} icon={AlertTriangle} variant="destructive" delay={5} />
         <KpiCard title="Saídas Sócios" value={formatCurrencyBR(kpis.saidasSocios)} subtitle="Gastos dos sócios" icon={ArrowUpRight} variant="destructive" delay={6} />
+      </div>
+
+      {/* KPIs Saldo Atual + Falta de Receita */}
+      <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
+        <KpiCard
+          title="Saldo Atual"
+          value={formatCurrencyBR(saldoAtual)}
+          subtitle="COST TOTAL — linha 25"
+          icon={Wallet}
+          variant="success"
+          delay={7}
+        />
+        <KpiCard
+          title="Falta de Receita"
+          value={formatCurrencyBR(kpis.aPagar - saldoAtual)}
+          subtitle={`A Pagar (${formatCurrencyBR(kpis.aPagar)}) − Saldo Atual`}
+          icon={Clock}
+          variant={kpis.aPagar - saldoAtual > 0 ? "destructive" : "success"}
+          delay={8}
+        />
       </div>
 
 
