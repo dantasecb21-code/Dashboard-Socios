@@ -44,9 +44,21 @@ function doGet(e) {
     });
   }
 
+  var costTotalSheet = ss.getSheetByName("COST TOTAL");
+  var saldoAtual = 0;
+  if (costTotalSheet) {
+    var costTotalData = costTotalSheet.getDataRange().getValues();
+    var row25 = costTotalData[24]; // linha 25 (índice 24)
+    if (row25 && row25[3] !== undefined) {
+      var raw = row25[3]; // coluna D (índice 3)
+      saldoAtual = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/[^0-9.,\-]/g, "").replace(",", ".")) || 0;
+    }
+  }
+
   var output = {
     sp: processRows(spData),
-    ssa: processRows(ssaData)
+    ssa: processRows(ssaData),
+    saldoAtual: saldoAtual
   };
 
   return ContentService

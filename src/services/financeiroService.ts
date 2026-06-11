@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface FinanceiroResult {
   clients: FinanceiroClient[];
   summaries: { geral: FinanceiroSummary; sp: FinanceiroSummary; ssa: FinanceiroSummary };
+  saldoAtual: number;
 }
 
 export async function fetchFinanceiroData(): Promise<FinanceiroResult> {
@@ -20,12 +21,15 @@ export async function fetchFinanceiroData(): Promise<FinanceiroResult> {
     const ssaClients = parseFinanceiroSSA(ssaRows);
     const summaries = parseFinanceiroSummariesByRegion(spRows, ssaRows);
 
-    return { clients: [...spClients, ...ssaClients], summaries };
+    const saldoAtual = typeof data.saldoAtual === "number" ? data.saldoAtual : 0;
+
+    return { clients: [...spClients, ...ssaClients], summaries, saldoAtual };
   } catch (err) {
     console.error("Erro ao buscar dados financeiros:", err);
     return {
       clients: financeiroStaticData,
       summaries: { geral: { receitaMensal: 0, receitaAtiva: 0, emCancelamento: 0 }, sp: { receitaMensal: 0, receitaAtiva: 0, emCancelamento: 0 }, ssa: { receitaMensal: 0, receitaAtiva: 0, emCancelamento: 0 } },
+      saldoAtual: 0,
     };
   }
 }
