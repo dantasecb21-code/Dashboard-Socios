@@ -33,10 +33,11 @@ const RhFolhaContent = () => {
   const saldoAtual = finData?.saldoAtual ?? 0;
   const items: FolhaItem[] = useMemo(() => {
     const main = data?.items ?? [];
-    // Se o fetch completo ainda não trouxe SAIDA, completa com o fetch rápido
-    const hasSaida = main.some((i) => i.categoria === "SAIDA");
-    if (hasSaida || !saidasData?.items?.length) return main;
-    return [...main, ...saidasData.items.filter((i) => i.categoria === "SAIDA")];
+    const saidas = saidasData?.items?.filter((i) => i.categoria === "SAIDA") ?? [];
+    // saidasData é a fonte autoritativa para SAIDA (staleTime menor, fetch dedicado)
+    // Mantém FOLHA/VARIAVEL do fetch completo e substitui SAIDA pelo fetch rápido
+    if (saidas.length === 0) return main;
+    return [...main.filter((i) => i.categoria !== "SAIDA"), ...saidas];
   }, [data, saidasData]);
   const meses: string[] = data?.meses ?? saidasData?.meses ?? [];
 
