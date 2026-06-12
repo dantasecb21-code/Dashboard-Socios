@@ -221,12 +221,12 @@ function parseAbas(abasRaw: Array<{ aba: string; rows: Record<string, unknown>[]
           const destinatario = getField(row, ["DESTINATARIO", "DESTINATÁRIO", "BENEFICIARIO", "BENEFICIÁRIO", "DESCRICAO", "DESCRIÇÃO"]);
           const valor = toNumber(findField(row, ["VALOR", "TOTAL"]));
           const valorDisplay = getField(row, ["VALOR", "TOTAL"]);
-          if (!destinatario && valor === 0) continue;
-          if (/\bTOTAL\b|\bSALDO\b/.test(destinatario.toUpperCase())) continue;
+          const responsavel = getField(row, ["RESPONSAVEL", "RESPONSÁVEL", "SOCIO", "SÓCIO"]);
+          if (!destinatario && !responsavel && valor === 0) continue;
+          if (destinatario && /\bTOTAL\b|\bSALDO\b/.test(destinatario.toUpperCase())) continue;
 
           const dataDisplay = getField(row, ["DATA", "DATA DE SAIDA", "DATA DE SAÍDA", "VENCIMENTO"]);
           const dias = extractDiasFromData(dataDisplay);
-          const responsavel = getField(row, ["RESPONSAVEL", "RESPONSÁVEL"]);
           const metodo = getField(row, ["METODO DE SAIDA", "MÉTODO DE SAÍDA", "FORMA DE PAGAMENTO", "METODO"]);
           const observacao = getField(row, ["OBSERVACAO", "OBSERVAÇÃO", "OBS"]);
           const rowKey = `${a.aba}-${toStr(row["_row"])}-${destinatario}`;
