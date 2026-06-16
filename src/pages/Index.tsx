@@ -20,10 +20,10 @@ import RhFolhaContent from "@/components/RhFolhaContent";
 import { formatCurrencyBR, isClienteEmAtraso } from "@/data/financeiro";
 import { normalizeEmpresa } from "@/lib/utils";
 import { formatCurrency } from "@/data/clients";
-import AppSidebar, { SidebarTab } from "@/components/AppSidebar";
+import AppSidebar, { SidebarGroup } from "@/components/AppSidebar";
+import { BASE_SIDEBAR_GROUPS } from "@/config/sidebar";
 import RightPanel from "@/components/RightPanel";
 
-const TABS = ["GERAL", "IFOOD", "99FOOD", "ESTRATÉGIAS", "PERFORMANCE", "PERFORMANCE 99", "ESTADOS", "COMERCIAL SP", "RH FOLHA", "OUTROS"];
 const OUTROS_SERVICES = ["GOOGLE", "TRÁFEGO PAGO", "KEETA", "SITE", "SEO", "MANUT. SITE", "GOOGLE + DISPARO", "GESTÃO RH E MKT"];
 
 const Index = () => {
@@ -192,58 +192,49 @@ const Index = () => {
         .filter(c => ["EM CANCELAMENTO", "EM CANCELAMENTO/ATRASADO", "EM CANCELAMENTO/PAGO"].includes(c.situacao.toUpperCase()) && c.valorFixo > 0)
         .reduce((sum, c) => sum + c.valorFixo, 0);
 
-  // Build sidebar tabs with badges
+  // Build sidebar groups with dynamic badges
   const estadosCount = new Set(
     (gerData?.lojas ?? [])
       .map(l => (l.estado || "").trim().toUpperCase())
       .filter(Boolean)
   ).size;
 
-  const sidebarTabs: SidebarTab[] = TABS.map((tab) => {
-    const tabFinClients = tab === "GERAL"
-      ? enrichedFinClients
-      : enrichedFinClients.filter(c => matchesTab(c.gestao, tab));
-    const finCount = tabFinClients.filter(c => activeStatuses.includes(c.situacao.toUpperCase())).length;
-    const gerCount = tab === "GERAL"
-      ? gerAtivas.length
-      : tab === "OUTROS"
+  const sidebarGroups: SidebarGroup[] = useMemo(() => {
+    const getBadge = (key: string): number | string | null => {
+      if (key === "ESTRATÉGIAS") return estrategiasSummary?.total ?? estrategias.length;
+      if (key === "PERFORMANCE") {
+        return performanceIfoodRows.filter(r => {
+          const s = (r.statusLoja || "").toLowerCase();
+          return s === "ativa" || s === "em cancelamento";
+        }).length;
+      }
+      if (key === "PERFORMANCE 99") {
+        return performance99Rows.filter(r => {
+          const s = (r.statusLoja || "").toLowerCase();
+          return s === "ativa" || s === "em cancelamento";
+        }).length;
+      }
+      if (key === "ESTADOS") return estadosCount;
+      if (key === "COMERCIAL SP" || key === "RH FOLHA") return null;
+      const tabFin = enrichedFinClients.filter(c => matchesTab(c.gestao, key));
+      const finCount = tabFin.filter(c => activeStatuses.includes(c.situacao.toUpperCase())).length;
+      const gerCount = key === "OUTROS"
         ? OUTROS_SERVICES.reduce((acc, s) => acc + (gerServiceTotals[s] ?? gerAtivas.filter(l => normalizeServico(l.servico) === s).length), 0)
-        : (gerServiceTotals[tab] ?? gerAtivas.filter(l => normalizeServico(l.servico) === tab).length);
+        : (gerServiceTotals[key] ?? gerAtivas.filter(l => normalizeServico(l.servico) === key).length);
+      return gerCount > 0 ? gerCount : finCount;
+    };
 
-    let badge: number | string | null = null;
-    let badges: { label: string; tone: "ifood" | "99food" }[] | undefined;
-    let label = tab;
-
-    if (tab === "ESTRATÉGIAS") {
-      badge = estrategiasSummary?.total ?? estrategias.length;
-    } else if (tab === "PERFORMANCE") {
-      label = "PERFORMANCE";
-      badges = [{ label: "iFOOD", tone: "ifood" }];
-      badge = performanceIfoodRows.filter(r => { const s = (r.statusLoja || "").toLowerCase(); return s === "ativa" || s === "em cancelamento"; }).length;
-    } else if (tab === "PERFORMANCE 99") {
-      label = "PERFORMANCE";
-      badges = [{ label: "99FOOD", tone: "99food" }];
-      badge = performance99Rows.filter(r => { const s = (r.statusLoja || "").toLowerCase(); return s === "ativa" || s === "em cancelamento"; }).length;
-    } else if (tab === "ESTADOS") {
-      badges = [{ label: "iFOOD", tone: "ifood" }, { label: "99FOOD", tone: "99food" }];
-      badge = estadosCount;
-    } else if (tab === "COMERCIAL SP") {
-      badge = null;
-    } else if (tab === "RH FOLHA") {
-      badge = null;
-    } else {
-      badge = tab === "GERAL" ? finCount : (gerCount > 0 ? gerCount : finCount);
-      if (tab !== "GERAL" && finCount === 0 && gerCount === 0) return null;
-    }
-
-    return { key: tab, label, badge, badges };
-  }).filter(Boolean) as SidebarTab[];
+    return BASE_SIDEBAR_GROUPS.map(group => ({
+      ...group,
+      tabs: group.tabs.map(tab => ({ ...tab, badge: getBadge(tab.key) })),
+    }));
+  }, [enrichedFinClients, estadosCount, estrategias, estrategiasSummary, performanceIfoodRows, performance99Rows, gerAtivas, gerServiceTotals]);
 
   return (
     <div className="min-h-screen bg-background bg-grid">
       <div className="fixed inset-0 bg-radial-glow pointer-events-none" />
       <div className="relative flex">
-        <AppSidebar tabs={sidebarTabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <AppSidebar groups={sidebarGroups} activeTab={activeTab} onTabChange={setActiveTab} />
         <div className="flex-1 min-w-0 md:pl-[68px]">
 
       {/* Header */}
