@@ -121,8 +121,11 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
             </div>
           </div>
 
-          {/* Scroll area — padding sempre px-3; overflow-x-hidden corta o conteúdo */}
-          <div className="relative flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-4 flex flex-col gap-4 px-3">
+          {/* Scroll area */}
+          <div className={cn(
+            "relative flex-1 overflow-y-auto overflow-x-hidden scrollbar-none py-4 flex flex-col gap-4",
+            expanded ? "px-3" : "px-0"
+          )}>
 
             {/* Navegação */}
             <div className="flex flex-col gap-1">
@@ -147,9 +150,12 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
                           setMobileOpen(false);
                         }}
                         className={cn(
-                          // Layout sempre expandido — o overflow-x-hidden do pai corta o texto quando colapsado
-                          "group relative flex items-center w-full h-11 rounded-xl text-[13px] font-semibold gap-3 px-3 justify-start",
+                          "group relative flex items-center h-11 rounded-xl text-[13px] font-semibold",
                           "transition-colors duration-200 overflow-hidden",
+                          // Layout: centrado colapsado, expandido com texto
+                          expanded
+                            ? "w-full gap-3 px-3 justify-start"
+                            : "justify-center w-11 mx-auto",
                           isActive
                             ? "text-primary-foreground"
                             : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]"
@@ -162,7 +168,7 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
                           </>
                         )}
                         <Icon className="relative w-[18px] h-[18px] shrink-0" strokeWidth={2.2} />
-                        {/* Texto faz fade — nunca sai do DOM */}
+                        {/* Texto: sempre no DOM, fade de opacidade — sem remover do layout */}
                         <span className={cn("relative whitespace-nowrap", fadeIn, visible)}>
                           {p.label}
                         </span>
@@ -269,10 +275,12 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
           {/* Logout */}
           <button
             onClick={() => { logout(); navigate("/login"); }}
+            title={!expanded ? "Sair" : undefined}
             className={cn(
-              "relative mb-3 mx-3 flex items-center h-11 gap-3 px-3 justify-start rounded-xl",
+              "relative mb-3 flex items-center h-11 rounded-xl",
               "text-[13px] font-semibold text-muted-foreground hover:text-destructive hover:bg-destructive/10",
-              "border border-transparent hover:border-destructive/20 transition-all duration-200"
+              "border border-transparent hover:border-destructive/20 transition-all duration-200",
+              expanded ? "mx-3 gap-3 px-3 justify-start" : "mx-auto w-11 justify-center"
             )}
           >
             <LogOut className="w-[18px] h-[18px] shrink-0" strokeWidth={2.2} />
