@@ -144,6 +144,7 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
                           navigate(p.to);
                           onPageChange?.(p.to);
                           if (p.to === "/") onTabChange?.("GERAL");
+                          setMobileOpen(false);
                         }}
                         className={cn(
                           // Layout sempre expandido — o overflow-x-hidden do pai corta o texto quando colapsado
@@ -217,7 +218,7 @@ const AppSidebar = memo(({ groups, activeTab, onTabChange, onPageChange }: Props
                             return (
                               <button
                                 key={t.key}
-                                onClick={() => onTabChange?.(t.key)}
+                                onClick={() => { onTabChange?.(t.key); setMobileOpen(false); }}
                                 className={cn(
                                   "group relative flex items-center justify-between gap-2 h-9 px-3 rounded-lg text-[12px] font-semibold transition-all duration-200 overflow-hidden whitespace-nowrap",
                                   isActive
