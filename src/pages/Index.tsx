@@ -16,6 +16,7 @@ import EstrategiasContent from "@/components/EstrategiasContent";
 import PerformanceContent from "@/components/PerformanceContent";
 import EstadosContent from "@/components/EstadosContent";
 import ComercialSpContent from "@/components/ComercialSpContent";
+import ComercialSalvadorContent from "@/components/ComercialSalvadorContent";
 import RhFolhaContent from "@/components/RhFolhaContent";
 import { formatCurrencyBR, isClienteEmAtraso } from "@/data/financeiro";
 import { normalizeEmpresa } from "@/lib/utils";
@@ -215,7 +216,7 @@ const Index = () => {
         }).length;
       }
       if (key === "ESTADOS") return estadosCount;
-      if (key === "COMERCIAL SP" || key === "RH FOLHA") return null;
+      if (key === "COMERCIAL SP" || key === "COMERCIAL" || key === "RH FOLHA") return null;
       const tabFin = enrichedFinClients.filter(c => matchesTab(c.gestao, key));
       const finCount = tabFin.filter(c => activeStatuses.includes(c.situacao.toUpperCase())).length;
       const gerCount = key === "OUTROS"
@@ -335,6 +336,8 @@ const Index = () => {
           <EstadosContent />
         ) : activeTab === "COMERCIAL SP" ? (
           <ComercialSpContent />
+        ) : activeTab === "COMERCIAL" ? (
+          <ComercialSalvadorContent />
         ) : activeTab === "RH FOLHA" ? (
           <RhFolhaContent />
         ) : (

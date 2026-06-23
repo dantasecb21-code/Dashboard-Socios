@@ -13,6 +13,7 @@ export const BASE_SIDEBAR_GROUPS: SidebarGroup[] = [
         ],
       },
       { key: "COMERCIAL SP", label: "Comercial SP" },
+      { key: "COMERCIAL", label: "Comercial" },
       { key: "OUTROS", label: "Outros" },
     ],
   },
