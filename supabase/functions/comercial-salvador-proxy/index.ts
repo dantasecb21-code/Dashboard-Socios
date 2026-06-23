@@ -5,8 +5,10 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
   try {
-    const url = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_URL");
-    const token = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN");
+    const url = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_URL")
+      ?? "https://script.google.com/macros/s/AKfycbywoVkKK4BIra80u-ZkqNdT8vO2QT9f7fyCjKFQNf_FhragbBzCGcLghIUy-4njGg1H9w/exec";
+    const token = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN")
+      ?? "27aa3305-f499-4288-88c2-a52a4d5d1ef3";
     if (!url || !token) {
       return new Response(
         JSON.stringify({ error: "Missing COMERCIAL_SALVADOR_APPS_SCRIPT_URL or COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN" }),
