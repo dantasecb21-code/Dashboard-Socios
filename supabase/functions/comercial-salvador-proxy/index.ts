@@ -6,7 +6,7 @@ Deno.serve(async (req) => {
   }
   try {
     const url = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_URL")
-      ?? "https://script.google.com/macros/s/AKfycbywoVkKK4BIra80u-ZkqNdT8vO2QT9f7fyCjKFQNf_FhragbBzCGcLghIUy-4njGg1H9w/exec";
+      ?? "https://script.google.com/macros/s/AKfycbwUucASjoY357DCye_LTieuShRag0nPlG3XTRWkn3I7HCMGCzIPjOgAF8YSUMfSGv7dzw/exec";
     const token = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN")
       ?? "27aa3305-f499-4288-88c2-a52a4d5d1ef3";
     if (!url || !token) {
