@@ -5,11 +5,11 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
   try {
-    const url = Deno.env.get("COMERCIAL_SALVADOR_DIARIO_APPS_SCRIPT_URL");
-    const token = Deno.env.get("COMERCIAL_SALVADOR_DIARIO_APPS_SCRIPT_TOKEN");
+    const url = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_URL");
+    const token = Deno.env.get("COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN");
     if (!url || !token) {
       return new Response(
-        JSON.stringify({ error: "Missing COMERCIAL_SALVADOR_DIARIO_APPS_SCRIPT_URL or COMERCIAL_SALVADOR_DIARIO_APPS_SCRIPT_TOKEN" }),
+        JSON.stringify({ error: "Missing COMERCIAL_SALVADOR_APPS_SCRIPT_URL or COMERCIAL_SALVADOR_APPS_SCRIPT_TOKEN" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error("comercial-salvador-diario-proxy error:", err);
+    console.error("comercial-salvador-proxy error:", err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
