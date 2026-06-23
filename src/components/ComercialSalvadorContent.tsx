@@ -146,9 +146,11 @@ const ComercialSalvadorContent = () => {
       if (!c) return;
       if (!map[c]) map[c] = { closer: c, total: 0, atendimentos: 0, vendas: 0, reunioes: 0, cancelados: 0 };
       map[c].total += 1;
-      if (r.status === "em_atendimento_closer" || r.status === "venda_feita") map[c].atendimentos += 1;
+      // atendimentos = ainda em andamento (em_atendimento_closer)
+      if (r.status === "em_atendimento_closer") map[c].atendimentos += 1;
       if (r.status === "venda_feita") map[c].vendas += 1;
-      if (r.status === "reuniao_feita" || r.status === "venda_feita") map[c].reunioes += 1;
+      // reunioes = todos os registros onde o closer participou (em_atend + venda_feita)
+      if (r.status === "em_atendimento_closer" || r.status === "venda_feita") map[c].reunioes += 1;
       if (r.status === "cancelado") map[c].cancelados += 1;
     });
     return Object.values(map).sort((a, b) => b.vendas - a.vendas);
@@ -773,8 +775,8 @@ const ComercialSalvadorContent = () => {
                       <th className="py-2 pr-3 font-semibold">#</th>
                       <th className="py-2 pr-3 font-semibold">Closer</th>
                       <th className="py-2 pr-3 font-semibold text-right">Total</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Atend.</th>
                       <th className="py-2 pr-3 font-semibold text-right">Reuniões</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Em Atend.</th>
                       <th className="py-2 pr-3 font-semibold text-right">Vendas</th>
                       <th className="py-2 pr-3 font-semibold text-right">Cancelados</th>
                       <th className="py-2 pr-3 font-semibold text-right">Conv. Vendas</th>
@@ -784,14 +786,15 @@ const ComercialSalvadorContent = () => {
                   <tbody>
                     {performanceCloser.map((c, i) => {
                       const convVendas = c.total > 0 ? (c.vendas / c.total) * 100 : 0;
-                      const convReunioes = c.total > 0 ? (c.reunioes / c.total) * 100 : 0;
+                      // conversão de reunião: quantas reuniões (com closer) viraram venda
+                      const convReunioes = c.reunioes > 0 ? (c.vendas / c.reunioes) * 100 : 0;
                       return (
                         <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
                           <td className="py-2 pr-3 text-muted-foreground tabular-nums">{i + 1}</td>
                           <td className="py-2 pr-3 text-foreground font-semibold">{c.closer}</td>
                           <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{c.total}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{c.atendimentos}</td>
                           <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{c.reunioes}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{c.atendimentos}</td>
                           <td className="py-2 pr-3 text-right tabular-nums font-bold" style={{ color: STATUS_COLORS["venda_feita"] }}>{c.vendas}</td>
                           <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{c.cancelados}</td>
                           <td className="py-2 pr-3 text-right tabular-nums">
