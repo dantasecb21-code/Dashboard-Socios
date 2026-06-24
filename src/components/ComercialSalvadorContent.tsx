@@ -44,6 +44,14 @@ const ComercialSalvadorContent = () => {
   const [agenderPickerOpen, setAgenderPickerOpen] = useState(false);
   const [closerPickerOpen, setCloserPickerOpen] = useState(false);
 
+  // Filtros da tabela Vendas Realizadas
+  const [buscaVendas, setBuscaVendas] = useState("");
+  const [filtroCloserVendas, setFiltroCloserVendas] = useState("TODOS");
+  const [filtroAgenderVendas, setFiltroAgenderVendas] = useState("TODOS");
+  const [filtroProdutoVendas, setFiltroProdutoVendas] = useState("TODOS");
+  const [filtroResultadoVendas, setFiltroResultadoVendas] = useState("TODOS");
+  const [filtroStatusVendas, setFiltroStatusVendas] = useState<"TODOS" | "ATIVAS" | "CANCELADAS">("TODOS");
+
   const registros = data?.registros ?? [];
   const vendasTab = data?.vendasTab ?? [];
   const resumoDiarioTab = data?.resumoDiarioTab ?? [];
@@ -124,6 +132,46 @@ const ComercialSalvadorContent = () => {
       return true;
     });
   }, [vendasTab, filtroPeriodo, filtroMes, filtroDataEsp]);
+
+  // Opções de filtro da tabela vendas (derivadas das vendas já filtradas por período)
+  const closersVendas = useMemo(() => {
+    const s = new Set<string>();
+    vendasFiltradas.forEach(v => { if (v.closer?.trim()) s.add(v.closer.trim()); });
+    return Array.from(s).sort();
+  }, [vendasFiltradas]);
+
+  const agendersVendas = useMemo(() => {
+    const s = new Set<string>();
+    vendasFiltradas.forEach(v => { if (v.agender?.trim()) s.add(v.agender.trim()); });
+    return Array.from(s).sort();
+  }, [vendasFiltradas]);
+
+  const produtosVendas = useMemo(() => {
+    const s = new Set<string>();
+    vendasFiltradas.forEach(v => { if (v.produto?.trim()) s.add(v.produto.trim()); });
+    return Array.from(s).sort();
+  }, [vendasFiltradas]);
+
+  const resultadosVendas = useMemo(() => {
+    const s = new Set<string>();
+    vendasFiltradas.forEach(v => { if (v.resultado?.trim()) s.add(v.resultado.trim()); });
+    return Array.from(s).sort();
+  }, [vendasFiltradas]);
+
+  const vendasTabFiltradas = useMemo(() => {
+    const q = buscaVendas.trim().toLowerCase();
+    return vendasFiltradas.filter(v => {
+      if (filtroCloserVendas !== "TODOS" && v.closer !== filtroCloserVendas) return false;
+      if (filtroAgenderVendas !== "TODOS" && v.agender !== filtroAgenderVendas) return false;
+      if (filtroProdutoVendas !== "TODOS" && v.produto !== filtroProdutoVendas) return false;
+      if (filtroResultadoVendas !== "TODOS" && v.resultado !== filtroResultadoVendas) return false;
+      if (filtroStatusVendas === "ATIVAS" && v.cancelada) return false;
+      if (filtroStatusVendas === "CANCELADAS" && !v.cancelada) return false;
+      if (q && ![v.empresa, v.cliente, v.closer, v.agender, v.produto, v.mesReferencia]
+        .some(f => f?.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [vendasFiltradas, buscaVendas, filtroCloserVendas, filtroAgenderVendas, filtroProdutoVendas, filtroResultadoVendas, filtroStatusVendas]);
 
   // Resumo Diário: aba real da planilha, filtrada por período via data
   const resumoFiltrado = useMemo(() => {
@@ -592,12 +640,75 @@ const ComercialSalvadorContent = () => {
 
           {/* Tabela Vendas */}
           <section className="glass-card p-4">
-            <h3 className="font-heading font-bold text-foreground text-base mb-4">
-              Vendas Realizadas
-              <span className="ml-2 text-xs text-muted-foreground font-normal">({vendasFiltradas.length})</span>
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <h3 className="font-heading font-bold text-foreground text-base">
+                Vendas Realizadas
+                <span className="ml-2 text-xs text-muted-foreground font-normal">({vendasTabFiltradas.length}{vendasTabFiltradas.length !== vendasFiltradas.length ? ` de ${vendasFiltradas.length}` : ""})</span>
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+                {closersVendas.length > 0 && (
+                  <select
+                    value={filtroCloserVendas}
+                    onChange={e => setFiltroCloserVendas(e.target.value)}
+                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
+                  >
+                    <option value="TODOS">Todos closers</option>
+                    {closersVendas.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                {agendersVendas.length > 0 && (
+                  <select
+                    value={filtroAgenderVendas}
+                    onChange={e => setFiltroAgenderVendas(e.target.value)}
+                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
+                  >
+                    <option value="TODOS">Todos agenders</option>
+                    {agendersVendas.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                )}
+                {produtosVendas.length > 0 && (
+                  <select
+                    value={filtroProdutoVendas}
+                    onChange={e => setFiltroProdutoVendas(e.target.value)}
+                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
+                  >
+                    <option value="TODOS">Todos produtos</option>
+                    {produtosVendas.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
+                {resultadosVendas.length > 0 && (
+                  <select
+                    value={filtroResultadoVendas}
+                    onChange={e => setFiltroResultadoVendas(e.target.value)}
+                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
+                  >
+                    <option value="TODOS">Todos resultados</option>
+                    {resultadosVendas.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                )}
+                <select
+                  value={filtroStatusVendas}
+                  onChange={e => setFiltroStatusVendas(e.target.value as "TODOS" | "ATIVAS" | "CANCELADAS")}
+                  className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
+                >
+                  <option value="TODOS">Todas</option>
+                  <option value="ATIVAS">Apenas ativas</option>
+                  <option value="CANCELADAS">Apenas canceladas</option>
+                </select>
+                <input
+                  type="text"
+                  value={buscaVendas}
+                  onChange={e => setBuscaVendas(e.target.value)}
+                  placeholder="Buscar empresa, cliente..."
+                  className="h-8 w-52 rounded-lg border border-border bg-background px-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+            </div>
             {vendasFiltradas.length === 0 ? (
               <p className="text-muted-foreground text-sm text-center py-8">Nenhuma venda no período selecionado</p>
+            ) : vendasTabFiltradas.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-8">Nenhuma venda com os filtros aplicados</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -617,7 +728,7 @@ const ComercialSalvadorContent = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {vendasFiltradas.map((v, i) => (
+                    {vendasTabFiltradas.map((v, i) => (
                       <tr key={v.id || i} className={`border-b border-border/50 hover:bg-secondary/30 ${v.cancelada ? "opacity-50" : ""}`}>
                         <td className="py-2 pr-3 text-muted-foreground tabular-nums">{i + 1}</td>
                         <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{formatDate(v.dataVenda)}</td>

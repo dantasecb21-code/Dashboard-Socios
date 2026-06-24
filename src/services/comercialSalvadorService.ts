@@ -29,6 +29,7 @@ export interface VendaRecord {
   cliente: string;
   produto: string;
   closer: string;
+  agender: string;
   mesReferencia: string;
   formaPagamento: string;
   valorTotal: number;
@@ -145,6 +146,7 @@ function parseVendas(rows: Record<string, unknown>[]): VendaRecord[] {
       cliente: toStr(findVal(r, "cliente")),
       produto: toStr(findVal(r, "produto")),
       closer: toStr(findVal(r, "closer")),
+      agender: toStr(findVal(r, "agender", "agendador")),
       mesReferencia: toStr(findVal(r, "mes_referencia", "mes_de_referencia", "mes")),
       formaPagamento: toStr(findVal(r, "forma_pagamento", "forma_de_pagamento", "pagamento")),
       valorTotal: toNum(findVal(r, "valor_total", "total", "valor", "receita")),
