@@ -89,21 +89,35 @@ const normalizeStatus = (raw: string): AgendamentoStatus => {
   return valid.includes(s as AgendamentoStatus) ? (s as AgendamentoStatus) : "a_fazer";
 };
 
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+
 const findTab = (
   abas: Record<string, Record<string, unknown>[]>,
   names: string[]
 ): Record<string, unknown>[] | undefined => {
+  // Exact match first
   for (const name of names) {
-    if (abas[name]) return abas[name];
+    if (abas[name] !== undefined) return abas[name];
+  }
+  // Case-insensitive + accent-insensitive fallback
+  const normNames = names.map(norm);
+  for (const key of Object.keys(abas)) {
+    if (normNames.includes(norm(key))) return abas[key];
+  }
+  // Partial match: any key that contains one of the names
+  for (const key of Object.keys(abas)) {
+    const nk = norm(key);
+    if (normNames.some(n => nk.includes(n) || n.includes(nk))) return abas[key];
   }
   return undefined;
 };
 
 function parseVendas(rows: Record<string, unknown>[]): VendaRecord[] {
   return rows
-    .filter(r => toStr(r["id"] ?? r["ID"]))
-    .map(r => ({
-      id: toStr(r["id"] ?? r["ID"]),
+    .filter(r => toStr(r["closer"]) || toStr(r["empresa"]) || toStr(r["produto"]))
+    .map((r, i) => ({
+      id: toStr(r["id"] ?? r["ID"]) || String(i + 1),
       dataVenda: toStr(r["data_venda"]),
       empresa: toStr(r["empresa"]),
       cliente: toStr(r["cliente"]),
@@ -157,7 +171,8 @@ export async function fetchComercialSalvador(): Promise<ComercialSalvadorResult>
     if (data?.error) throw new Error(data.error);
 
     const abas: Record<string, Record<string, unknown>[]> = data?.abas ?? {};
-    const rows: Record<string, unknown>[] = abas["Agendamentos"] ?? data?.rows ?? [];
+    const agendasRaw = findTab(abas, ["Agendamentos", "Agendamento", "agendamentos", "agendamento"]);
+    const rows: Record<string, unknown>[] = agendasRaw ?? data?.rows ?? [];
 
     const registros: AgendamentoRecord[] = rows.map((row) => ({
       id: toStr(row["id"] ?? row["ID"]),
@@ -174,9 +189,16 @@ export async function fetchComercialSalvador(): Promise<ComercialSalvadorResult>
       origem: toStr(row["origem"] ?? row["Origem"] ?? row["ORIGEM"]),
     }));
 
-    const vendasRaw = findTab(abas, ["Vendas", "vendas", "VENDAS"]);
-    const resumoRaw = findTab(abas, ["Resumo Diário", "Resumo Diario", "RESUMO DIÁRIO", "RESUMO DIARIO", "Resumo"]);
-    const perfRaw = findTab(abas, ["Performance Closer", "Performance", "PERFORMANCE"]);
+    const vendasRaw = findTab(abas, ["Vendas", "vendas", "VENDAS", "Venda", "venda"]);
+    const resumoRaw = findTab(abas, ["Resumo Diário", "Resumo Diario", "RESUMO DIÁRIO", "RESUMO DIARIO", "Resumo Diario", "Resumo"]);
+    const perfRaw = findTab(abas, ["Performance Closer", "Performance", "PERFORMANCE", "Perf Closer", "perf closer"]);
+
+    if (Object.keys(abas).length) {
+      const found = { vendas: !!vendasRaw, resumo: !!resumoRaw, perf: !!perfRaw };
+      if (!found.vendas || !found.resumo || !found.perf) {
+        console.warn("Salvador: abas disponíveis:", Object.keys(abas), "| encontradas:", found);
+      }
+    }
 
     return {
       registros,
