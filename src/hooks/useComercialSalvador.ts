@@ -2,15 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchComercialSalvador, ComercialSalvadorResult } from "@/services/comercialSalvadorService";
 import { readPersistedQuery, writePersistedQuery } from "@/lib/queryPersistence";
 
-const CACHE_KEY = "query-cache:comercial-salvador:v2";
+const CACHE_KEY = "query-cache:comercial-salvador:v3";
 
 export function useComercialSalvador() {
   if (typeof window !== "undefined") {
-    try { window.localStorage.removeItem("query-cache:comercial-salvador:v1"); } catch { /* ignore */ }
+    try {
+      window.localStorage.removeItem("query-cache:comercial-salvador:v1");
+      window.localStorage.removeItem("query-cache:comercial-salvador:v2");
+    } catch { /* ignore */ }
   }
   const cached = readPersistedQuery<ComercialSalvadorResult>(CACHE_KEY);
   return useQuery<ComercialSalvadorResult>({
-    queryKey: ["comercial-salvador", "v2"],
+    queryKey: ["comercial-salvador", "v3"],
     queryFn: async () => {
       const data = await fetchComercialSalvador();
       writePersistedQuery(CACHE_KEY, data);
