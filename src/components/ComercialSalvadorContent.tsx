@@ -46,11 +46,15 @@ const ComercialSalvadorContent = () => {
 
   // Filtros da tabela Vendas Realizadas
   const [buscaVendas, setBuscaVendas] = useState("");
-  const [filtroCloserVendas, setFiltroCloserVendas] = useState("TODOS");
-  const [filtroAgenderVendas, setFiltroAgenderVendas] = useState("TODOS");
-  const [filtroProdutoVendas, setFiltroProdutoVendas] = useState("TODOS");
-  const [filtroResultadoVendas, setFiltroResultadoVendas] = useState("TODOS");
+  const [filtroClosersVendas, setFiltroClosersVendas] = useState<string[]>([]);
+  const [filtroAgendersVendas, setFiltroAgendersVendas] = useState<string[]>([]);
+  const [filtroProdutosVendas, setFiltroProdutosVendas] = useState<string[]>([]);
+  const [filtroResultadosVendas, setFiltroResultadosVendas] = useState<string[]>([]);
   const [filtroStatusVendas, setFiltroStatusVendas] = useState<"TODOS" | "ATIVAS" | "CANCELADAS">("TODOS");
+  const [closerVendasOpen, setCloserVendasOpen] = useState(false);
+  const [agenderVendasOpen, setAgenderVendasOpen] = useState(false);
+  const [produtoVendasOpen, setProdutoVendasOpen] = useState(false);
+  const [resultadoVendasOpen, setResultadoVendasOpen] = useState(false);
 
   const registros = data?.registros ?? [];
   const vendasTab = data?.vendasTab ?? [];
@@ -161,17 +165,17 @@ const ComercialSalvadorContent = () => {
   const vendasTabFiltradas = useMemo(() => {
     const q = buscaVendas.trim().toLowerCase();
     return vendasFiltradas.filter(v => {
-      if (filtroCloserVendas !== "TODOS" && v.closer !== filtroCloserVendas) return false;
-      if (filtroAgenderVendas !== "TODOS" && v.agender !== filtroAgenderVendas) return false;
-      if (filtroProdutoVendas !== "TODOS" && v.produto !== filtroProdutoVendas) return false;
-      if (filtroResultadoVendas !== "TODOS" && v.resultado !== filtroResultadoVendas) return false;
+      if (filtroClosersVendas.length > 0 && !filtroClosersVendas.includes(v.closer)) return false;
+      if (filtroAgendersVendas.length > 0 && !filtroAgendersVendas.includes(v.agender)) return false;
+      if (filtroProdutosVendas.length > 0 && !filtroProdutosVendas.includes(v.produto)) return false;
+      if (filtroResultadosVendas.length > 0 && !filtroResultadosVendas.includes(v.resultado)) return false;
       if (filtroStatusVendas === "ATIVAS" && v.cancelada) return false;
       if (filtroStatusVendas === "CANCELADAS" && !v.cancelada) return false;
       if (q && ![v.empresa, v.cliente, v.closer, v.agender, v.produto, v.mesReferencia]
         .some(f => f?.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [vendasFiltradas, buscaVendas, filtroCloserVendas, filtroAgenderVendas, filtroProdutoVendas, filtroResultadoVendas, filtroStatusVendas]);
+  }, [vendasFiltradas, buscaVendas, filtroClosersVendas, filtroAgendersVendas, filtroProdutosVendas, filtroResultadosVendas, filtroStatusVendas]);
 
   // Resumo Diário: aba real da planilha, filtrada por período via data
   const resumoFiltrado = useMemo(() => {
@@ -647,46 +651,120 @@ const ComercialSalvadorContent = () => {
               </h3>
               <div className="flex flex-wrap items-center gap-2">
                 <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+
+                {/* Closer multi-select */}
                 {closersVendas.length > 0 && (
-                  <select
-                    value={filtroCloserVendas}
-                    onChange={e => setFiltroCloserVendas(e.target.value)}
-                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
-                  >
-                    <option value="TODOS">Todos closers</option>
-                    {closersVendas.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <Popover open={closerVendasOpen} onOpenChange={setCloserVendasOpen}>
+                    <PopoverTrigger asChild>
+                      <button className={cn("flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 border border-border bg-secondary text-foreground", filtroClosersVendas.length > 0 && "border-primary/60 bg-primary/10 text-primary")}>
+                        {filtroClosersVendas.length === 0 ? "Closers" : `Closers (${filtroClosersVendas.length})`}
+                        <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[180px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar closer..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum encontrado</CommandEmpty>
+                          <CommandGroup>
+                            {closersVendas.map(c => (
+                              <CommandItem key={c} onSelect={() => setFiltroClosersVendas(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])}>
+                                <Check className={cn("mr-2 h-3.5 w-3.5", filtroClosersVendas.includes(c) ? "opacity-100" : "opacity-0")} />
+                                <span className="text-xs">{c}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
+
+                {/* Agender multi-select */}
                 {agendersVendas.length > 0 && (
-                  <select
-                    value={filtroAgenderVendas}
-                    onChange={e => setFiltroAgenderVendas(e.target.value)}
-                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
-                  >
-                    <option value="TODOS">Todos agenders</option>
-                    {agendersVendas.map(a => <option key={a} value={a}>{a}</option>)}
-                  </select>
+                  <Popover open={agenderVendasOpen} onOpenChange={setAgenderVendasOpen}>
+                    <PopoverTrigger asChild>
+                      <button className={cn("flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 border border-border bg-secondary text-foreground", filtroAgendersVendas.length > 0 && "border-primary/60 bg-primary/10 text-primary")}>
+                        {filtroAgendersVendas.length === 0 ? "Agenders" : `Agenders (${filtroAgendersVendas.length})`}
+                        <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[180px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar agender..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum encontrado</CommandEmpty>
+                          <CommandGroup>
+                            {agendersVendas.map(a => (
+                              <CommandItem key={a} onSelect={() => setFiltroAgendersVendas(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a])}>
+                                <Check className={cn("mr-2 h-3.5 w-3.5", filtroAgendersVendas.includes(a) ? "opacity-100" : "opacity-0")} />
+                                <span className="text-xs">{a}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
+
+                {/* Produto multi-select */}
                 {produtosVendas.length > 0 && (
-                  <select
-                    value={filtroProdutoVendas}
-                    onChange={e => setFiltroProdutoVendas(e.target.value)}
-                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
-                  >
-                    <option value="TODOS">Todos produtos</option>
-                    {produtosVendas.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <Popover open={produtoVendasOpen} onOpenChange={setProdutoVendasOpen}>
+                    <PopoverTrigger asChild>
+                      <button className={cn("flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 border border-border bg-secondary text-foreground", filtroProdutosVendas.length > 0 && "border-primary/60 bg-primary/10 text-primary")}>
+                        {filtroProdutosVendas.length === 0 ? "Produtos" : `Produtos (${filtroProdutosVendas.length})`}
+                        <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar produto..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum encontrado</CommandEmpty>
+                          <CommandGroup>
+                            {produtosVendas.map(p => (
+                              <CommandItem key={p} onSelect={() => setFiltroProdutosVendas(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}>
+                                <Check className={cn("mr-2 h-3.5 w-3.5", filtroProdutosVendas.includes(p) ? "opacity-100" : "opacity-0")} />
+                                <span className="text-xs">{p}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
+
+                {/* Resultado multi-select */}
                 {resultadosVendas.length > 0 && (
-                  <select
-                    value={filtroResultadoVendas}
-                    onChange={e => setFiltroResultadoVendas(e.target.value)}
-                    className="text-xs bg-secondary text-foreground rounded-lg px-2 py-1.5 border border-border"
-                  >
-                    <option value="TODOS">Todos resultados</option>
-                    {resultadosVendas.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <Popover open={resultadoVendasOpen} onOpenChange={setResultadoVendasOpen}>
+                    <PopoverTrigger asChild>
+                      <button className={cn("flex items-center gap-1 text-xs rounded-lg px-2 py-1.5 border border-border bg-secondary text-foreground", filtroResultadosVendas.length > 0 && "border-primary/60 bg-primary/10 text-primary")}>
+                        {filtroResultadosVendas.length === 0 ? "Resultado" : `Resultado (${filtroResultadosVendas.length})`}
+                        <ChevronsUpDown className="h-3 w-3 opacity-50 shrink-0" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[180px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar resultado..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhum encontrado</CommandEmpty>
+                          <CommandGroup>
+                            {resultadosVendas.map(r => (
+                              <CommandItem key={r} onSelect={() => setFiltroResultadosVendas(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}>
+                                <Check className={cn("mr-2 h-3.5 w-3.5", filtroResultadosVendas.includes(r) ? "opacity-100" : "opacity-0")} />
+                                <span className="text-xs">{r}</span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
+
+                {/* Status select */}
                 <select
                   value={filtroStatusVendas}
                   onChange={e => setFiltroStatusVendas(e.target.value as "TODOS" | "ATIVAS" | "CANCELADAS")}
@@ -696,6 +774,7 @@ const ComercialSalvadorContent = () => {
                   <option value="ATIVAS">Apenas ativas</option>
                   <option value="CANCELADAS">Apenas canceladas</option>
                 </select>
+
                 <input
                   type="text"
                   value={buscaVendas}
@@ -703,6 +782,16 @@ const ComercialSalvadorContent = () => {
                   placeholder="Buscar empresa, cliente..."
                   className="h-8 w-52 rounded-lg border border-border bg-background px-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+
+                {/* Limpar filtros */}
+                {(filtroClosersVendas.length > 0 || filtroAgendersVendas.length > 0 || filtroProdutosVendas.length > 0 || filtroResultadosVendas.length > 0 || filtroStatusVendas !== "TODOS" || buscaVendas) && (
+                  <button
+                    onClick={() => { setFiltroClosersVendas([]); setFiltroAgendersVendas([]); setFiltroProdutosVendas([]); setFiltroResultadosVendas([]); setFiltroStatusVendas("TODOS"); setBuscaVendas(""); }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                  >
+                    Limpar
+                  </button>
+                )}
               </div>
             </div>
             {vendasFiltradas.length === 0 ? (
