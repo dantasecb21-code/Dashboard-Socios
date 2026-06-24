@@ -92,6 +92,16 @@ const normalizeStatus = (raw: string): AgendamentoStatus => {
 const norm = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
 
+const normalizeKey = (k: string): string =>
+  k.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_");
+
+const normalizeRows = (rows: Record<string, unknown>[]): Record<string, unknown>[] =>
+  rows.map(row => {
+    const n: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(row)) n[normalizeKey(k)] = v;
+    return n;
+  });
+
 const findTab = (
   abas: Record<string, Record<string, unknown>[]>,
   names: string[]
@@ -202,9 +212,9 @@ export async function fetchComercialSalvador(): Promise<ComercialSalvadorResult>
 
     return {
       registros,
-      vendasTab: vendasRaw ? parseVendas(vendasRaw) : [],
-      resumoDiarioTab: resumoRaw ? parseResumoDiario(resumoRaw) : [],
-      performanceTab: perfRaw ? parsePerformance(perfRaw) : [],
+      vendasTab: vendasRaw ? parseVendas(normalizeRows(vendasRaw)) : [],
+      resumoDiarioTab: resumoRaw ? parseResumoDiario(normalizeRows(resumoRaw)) : [],
+      performanceTab: perfRaw ? parsePerformance(normalizeRows(perfRaw)) : [],
     };
   } catch (err) {
     console.error("Erro Comercial Salvador:", err);
