@@ -1,8 +1,6 @@
+import { supabase } from "@/integrations/supabase/client";
 import { Client } from "@/data/clients";
 import { clients as staticClients } from "@/data/clients";
-
-// Google Apps Script Web App URL - user needs to deploy and paste the URL here
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzovnxDhonXy_0hxfxX6m1QJQzLaeEGSkyBtaicjv9G18bmx1AL1b9Ey98a3WsgMpZu/exec";
 
 function parseNumber(val: string | number | null | undefined): number {
   if (val == null || val === "" || val === "-" || val === "N/A") return 0;
@@ -51,26 +49,10 @@ function parseClientFromRow(row: any[]): Client | null {
 }
 
 export async function fetchAllClients(): Promise<Client[]> {
-  if (!APPS_SCRIPT_URL) {
-    console.log("Apps Script URL não configurada. Usando dados estáticos.");
-    return staticClients;
-  }
-
   try {
-    const url = `${APPS_SCRIPT_URL}${APPS_SCRIPT_URL.includes("?") ? "&" : "?"}t=${Date.now()}`;
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) throw new Error(`Erro: ${res.status}`);
-
-    const contentType = res.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      throw new Error("Resposta inválida do Apps Script");
-    }
-
-    const data = await res.json();
+    const { data, error } = await supabase.functions.invoke("clientes-proxy");
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
 
     const bancoRows: string[][] = data.banco || [];
     const ifoodGestores: Array<{empresa: string; gestor: string; status: string}> = data.ifoodGestores || [];
