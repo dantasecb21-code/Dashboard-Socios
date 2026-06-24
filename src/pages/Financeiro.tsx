@@ -160,17 +160,18 @@ const Financeiro = () => {
   }, [filtered]);
 
   // Monthly revenue
+  const currentYear = new Date().getFullYear().toString();
   const monthlyData = useMemo(() => {
     const monthly: Record<string, number> = {};
     filtered.forEach(c => {
       for (const [k, v] of Object.entries(c.pagamentosMensais)) {
-        if (k.startsWith("2025")) {
+        if (k.startsWith(currentYear)) {
           monthly[k] = (monthly[k] || 0) + v;
         }
       }
     });
     return Object.entries(monthly).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => ({ month: getMonthLabel(key), revenue: value }));
-  }, [filtered]);
+  }, [filtered, currentYear]);
 
   // Gestao chart
   const gestaoData = useMemo(() => {
@@ -567,7 +568,7 @@ const Financeiro = () => {
               </div>
 
               <div className="lg:col-span-3 glass-card p-3 sm:p-4 lg:p-5 opacity-0 animate-fade-in" style={{ animationDelay: "0.3s" }}>
-                <h3 className="font-heading font-bold text-foreground text-xs sm:text-sm mb-3 sm:mb-4">Faturamento Mensal (2025)</h3>
+                <h3 className="font-heading font-bold text-foreground text-xs sm:text-sm mb-3 sm:mb-4">Faturamento Mensal ({currentYear})</h3>
                 {monthlyData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={monthlyData} margin={{ left: 0, right: 5, top: 5, bottom: 5 }}>

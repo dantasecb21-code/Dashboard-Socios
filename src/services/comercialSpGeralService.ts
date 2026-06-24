@@ -79,12 +79,10 @@ const toStr = (v: Cell): string => (v === null || v === undefined ? "" : String(
 
 // ===== PARSERS =====
 function parseReunioes(matrix: Matrix): { abril: ReuniaoLinha[]; maio: ReuniaoLinha[] } {
-  // Procura linhas "São Paulo" e coleta os agenders abaixo até "Total"
   const abril: ReuniaoLinha[] = [];
   const maio: ReuniaoLinha[] = [];
   if (!matrix || !matrix.length) return { abril, maio };
 
-  // Layout: bloco esquerdo (Abril) começa na coluna C (idx 2); bloco direito (Maio) na coluna J (idx 9)
   function extractBlock(startCol: number): ReuniaoLinha[] {
     const out: ReuniaoLinha[] = [];
     let inSP = false;
@@ -107,7 +105,31 @@ function parseReunioes(matrix: Matrix): { abril: ReuniaoLinha[]; maio: ReuniaoLi
     return out;
   }
 
-  return { abril: extractBlock(2), maio: extractBlock(9) };
+  // Detecta dinamicamente todas as colunas que contêm "são paulo"
+  // para encontrar todos os blocos mensais presentes na planilha
+  const spCols: number[] = [];
+  if (matrix[0]) {
+    for (let r = 0; r < Math.min(matrix.length, 20); r++) {
+      const row = matrix[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        if (toStr(row[c]).toLowerCase() === "são paulo") {
+          if (!spCols.includes(c)) spCols.push(c);
+        }
+      }
+    }
+  }
+  spCols.sort((a, b) => a - b);
+
+  if (spCols.length === 0) {
+    // Fallback para posições hardcoded caso a planilha não seja encontrada
+    return { abril: extractBlock(2), maio: extractBlock(9) };
+  }
+
+  // O penúltimo bloco = mês anterior; o último = mês vigente
+  const penultimo = spCols.length >= 2 ? spCols[spCols.length - 2] : spCols[0];
+  const ultimo = spCols[spCols.length - 1];
+
+  return { abril: extractBlock(penultimo), maio: extractBlock(ultimo) };
 }
 
 function parseBase(matrix: Matrix): BaseVenda[] {
