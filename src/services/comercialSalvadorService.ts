@@ -123,21 +123,33 @@ const findTab = (
   return undefined;
 };
 
+const findVal = (row: Record<string, unknown>, ...terms: string[]): unknown => {
+  for (const term of terms) {
+    if (row[term] !== undefined) return row[term];
+  }
+  // fallback: procura chave que contenha o termo
+  for (const term of terms) {
+    const key = Object.keys(row).find(k => k.includes(term));
+    if (key) return row[key];
+  }
+  return undefined;
+};
+
 function parseVendas(rows: Record<string, unknown>[]): VendaRecord[] {
   return rows
-    .filter(r => toStr(r["closer"]) || toStr(r["empresa"]) || toStr(r["produto"]))
+    .filter(r => toStr(findVal(r, "closer")) || toStr(findVal(r, "empresa")) || toStr(findVal(r, "produto")))
     .map((r, i) => ({
       id: toStr(r["id"] ?? r["ID"]) || String(i + 1),
-      dataVenda: toStr(r["data_venda"]),
-      empresa: toStr(r["empresa"]),
-      cliente: toStr(r["cliente"]),
-      produto: toStr(r["produto"]),
-      closer: toStr(r["closer"]),
-      mesReferencia: toStr(r["mes_referencia"]),
-      formaPagamento: toStr(r["forma_pagamento"]),
-      valorTotal: toNum(r["valor_total"]),
-      resultado: toStr(r["resultado"]),
-      cancelada: toBool(r["cancelada"]),
+      dataVenda: toStr(findVal(r, "data_venda", "data")),
+      empresa: toStr(findVal(r, "empresa")),
+      cliente: toStr(findVal(r, "cliente")),
+      produto: toStr(findVal(r, "produto")),
+      closer: toStr(findVal(r, "closer")),
+      mesReferencia: toStr(findVal(r, "mes_referencia", "mes_de_referencia", "mes")),
+      formaPagamento: toStr(findVal(r, "forma_pagamento", "forma_de_pagamento", "pagamento")),
+      valorTotal: toNum(findVal(r, "valor_total", "total", "valor", "receita")),
+      resultado: toStr(findVal(r, "resultado")),
+      cancelada: toBool(findVal(r, "cancelada")),
     }));
 }
 
@@ -161,13 +173,13 @@ function parseResumoDiario(rows: Record<string, unknown>[]): ResumoDiarioRecord[
 
 function parsePerformance(rows: Record<string, unknown>[]): PerformanceCloserRecord[] {
   return rows
-    .filter(r => toStr(r["closer"]))
+    .filter(r => toStr(findVal(r, "closer") ?? r["closer"]))
     .map(r => ({
-      closer: toStr(r["closer"]),
-      reunioes: toNum(r["reunioes"]),
-      vendas: toNum(r["vendas"]),
-      receita: toNum(r["receita"]),
-      ticketMedio: toNum(r["ticket_medio"]),
+      closer: toStr(findVal(r, "closer")),
+      reunioes: toNum(findVal(r, "reunioes", "reuniao", "reuniao_feita")),
+      vendas: toNum(findVal(r, "vendas", "venda", "no_de_vendas", "n_de_vendas")),
+      receita: toNum(findVal(r, "receita", "faturamento", "valor")),
+      ticketMedio: toNum(findVal(r, "ticket_medio", "ticket", "media", "ticket_medio_r$")),
     }));
 }
 
