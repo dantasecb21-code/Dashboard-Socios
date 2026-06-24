@@ -22,20 +22,65 @@ export interface AgendamentoRecord {
   origem: string;
 }
 
-export interface TabRecord {
-  [key: string]: string;
+export interface VendaRecord {
+  id: string;
+  dataVenda: string;
+  empresa: string;
+  cliente: string;
+  produto: string;
+  closer: string;
+  mesReferencia: string;
+  formaPagamento: string;
+  valorTotal: number;
+  resultado: string;
+  cancelada: boolean;
+}
+
+export interface ResumoDiarioRecord {
+  data: string;
+  agendamentos: number;
+  auditadas: number;
+  feitas: number;
+  emAtendimento: number;
+  aguardandoReagendamento: number;
+  reagendadas: number;
+  canceladas: number;
+  aFazer: number;
+  vendas: number;
+  receita: number;
+}
+
+export interface PerformanceCloserRecord {
+  closer: string;
+  reunioes: number;
+  vendas: number;
+  receita: number;
+  ticketMedio: number;
 }
 
 export interface ComercialSalvadorResult {
   registros: AgendamentoRecord[];
-  vendasTab?: TabRecord[];
-  resumoDiarioTab?: TabRecord[];
-  performanceTab?: TabRecord[];
+  vendasTab: VendaRecord[];
+  resumoDiarioTab: ResumoDiarioRecord[];
+  performanceTab: PerformanceCloserRecord[];
 }
 
 const toStr = (v: unknown): string => {
   if (v === null || v === undefined) return "";
   return String(v).trim();
+};
+
+const toNum = (v: unknown): number => {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return v;
+  const s = String(v).replace(/[R$\s.]/g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toBool = (v: unknown): boolean => {
+  const s = toStr(v).toLowerCase();
+  return s === "sim" || s === "true" || s === "1" || s === "yes";
 };
 
 const normalizeStatus = (raw: string): AgendamentoStatus => {
@@ -54,20 +99,65 @@ const findTab = (
   return undefined;
 };
 
-const toTabRecords = (rows: Record<string, unknown>[]): TabRecord[] =>
-  rows.map(r =>
-    Object.fromEntries(Object.entries(r).map(([k, v]) => [k, toStr(v)]))
-  );
+function parseVendas(rows: Record<string, unknown>[]): VendaRecord[] {
+  return rows
+    .filter(r => toStr(r["id"] ?? r["ID"]))
+    .map(r => ({
+      id: toStr(r["id"] ?? r["ID"]),
+      dataVenda: toStr(r["data_venda"]),
+      empresa: toStr(r["empresa"]),
+      cliente: toStr(r["cliente"]),
+      produto: toStr(r["produto"]),
+      closer: toStr(r["closer"]),
+      mesReferencia: toStr(r["mes_referencia"]),
+      formaPagamento: toStr(r["forma_pagamento"]),
+      valorTotal: toNum(r["valor_total"]),
+      resultado: toStr(r["resultado"]),
+      cancelada: toBool(r["cancelada"]),
+    }));
+}
+
+function parseResumoDiario(rows: Record<string, unknown>[]): ResumoDiarioRecord[] {
+  return rows
+    .filter(r => toStr(r["data"]))
+    .map(r => ({
+      data: toStr(r["data"]),
+      agendamentos: toNum(r["agendamentos"]),
+      auditadas: toNum(r["auditadas"]),
+      feitas: toNum(r["feitas"]),
+      emAtendimento: toNum(r["em_atendimento"]),
+      aguardandoReagendamento: toNum(r["aguardando_reagendamento"]),
+      reagendadas: toNum(r["reagendadas"]),
+      canceladas: toNum(r["canceladas"]),
+      aFazer: toNum(r["a_fazer"]),
+      vendas: toNum(r["vendas"]),
+      receita: toNum(r["receita"]),
+    }));
+}
+
+function parsePerformance(rows: Record<string, unknown>[]): PerformanceCloserRecord[] {
+  return rows
+    .filter(r => toStr(r["closer"]))
+    .map(r => ({
+      closer: toStr(r["closer"]),
+      reunioes: toNum(r["reunioes"]),
+      vendas: toNum(r["vendas"]),
+      receita: toNum(r["receita"]),
+      ticketMedio: toNum(r["ticket_medio"]),
+    }));
+}
 
 export async function fetchComercialSalvador(): Promise<ComercialSalvadorResult> {
+  const empty: ComercialSalvadorResult = {
+    registros: [], vendasTab: [], resumoDiarioTab: [], performanceTab: [],
+  };
   try {
     const { data, error } = await supabase.functions.invoke("comercial-salvador-proxy");
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
 
     const abas: Record<string, Record<string, unknown>[]> = data?.abas ?? {};
-    const rows: Record<string, unknown>[] =
-      abas["Agendamentos"] ?? data?.rows ?? [];
+    const rows: Record<string, unknown>[] = abas["Agendamentos"] ?? data?.rows ?? [];
 
     const registros: AgendamentoRecord[] = rows.map((row) => ({
       id: toStr(row["id"] ?? row["ID"]),
@@ -84,19 +174,19 @@ export async function fetchComercialSalvador(): Promise<ComercialSalvadorResult>
       origem: toStr(row["origem"] ?? row["Origem"] ?? row["ORIGEM"]),
     }));
 
-    const vendasRaw = findTab(abas, ["Vendas", "vendas", "VENDAS", "Venda", "VENDA"]);
+    const vendasRaw = findTab(abas, ["Vendas", "vendas", "VENDAS"]);
     const resumoRaw = findTab(abas, ["Resumo Diário", "Resumo Diario", "RESUMO DIÁRIO", "RESUMO DIARIO", "Resumo"]);
-    const perfRaw = findTab(abas, ["Performance Closer", "Performance", "PERFORMANCE", "Perf Closer"]);
+    const perfRaw = findTab(abas, ["Performance Closer", "Performance", "PERFORMANCE"]);
 
     return {
       registros,
-      vendasTab: vendasRaw ? toTabRecords(vendasRaw) : undefined,
-      resumoDiarioTab: resumoRaw ? toTabRecords(resumoRaw) : undefined,
-      performanceTab: perfRaw ? toTabRecords(perfRaw) : undefined,
+      vendasTab: vendasRaw ? parseVendas(vendasRaw) : [],
+      resumoDiarioTab: resumoRaw ? parseResumoDiario(resumoRaw) : [],
+      performanceTab: perfRaw ? parsePerformance(perfRaw) : [],
     };
   } catch (err) {
     console.error("Erro Comercial Salvador:", err);
-    return { registros: [] };
+    return empty;
   }
 }
 

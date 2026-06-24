@@ -2,10 +2,11 @@ import { useMemo, useState } from "react";
 import { useComercialSalvador } from "@/hooks/useComercialSalvador";
 import { STATUS_LABELS, STATUS_COLORS, AgendamentoStatus } from "@/services/comercialSalvadorService";
 import KpiCard from "./KpiCard";
+import { formatCurrencyBR } from "@/data/financeiro";
 import {
   CalendarCheck, Users, XCircle, TrendingUp, Filter,
   Check, ChevronsUpDown, ChevronDown, ShoppingBag, Award,
-  CalendarDays, BarChart2,
+  CalendarDays, BarChart2, DollarSign,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -44,6 +45,9 @@ const ComercialSalvadorContent = () => {
   const [closerPickerOpen, setCloserPickerOpen] = useState(false);
 
   const registros = data?.registros ?? [];
+  const vendasTab = data?.vendasTab ?? [];
+  const resumoDiarioTab = data?.resumoDiarioTab ?? [];
+  const performanceTab = data?.performanceTab ?? [];
 
   const agenders = useMemo(() => {
     const s = new Set<string>();
@@ -63,7 +67,7 @@ const ComercialSalvadorContent = () => {
     return Array.from(s).sort();
   }, [registros]);
 
-  // Apply period filter first, then field filters
+  // Agendamentos: filtro de período + campos
   const filtradosPeriodo = useMemo(() => {
     const today = todayStr();
     return registros.filter(r => {
@@ -109,52 +113,31 @@ const ComercialSalvadorContent = () => {
       .sort((a, b) => b.reunioes - a.reunioes);
   }, [filtrados]);
 
-  // Vendas (from registros with status venda_feita, within period)
-  const vendas = useMemo(
-    () => filtradosPeriodo.filter(r => r.status === "venda_feita"),
-    [filtradosPeriodo]
-  );
-
-  // Resumo Diário (grouped by dataReuniao, within period)
-  const resumoDiario = useMemo(() => {
-    const map: Record<string, {
-      data: string; total: number; reunioes: number; vendas: number;
-      cancelados: number; emAtend: number; aFazer: number;
-    }> = {};
-    filtradosPeriodo.forEach(r => {
-      const d = r.dataReuniao || r.dataAgendamento;
-      if (!d) return;
-      if (!map[d]) map[d] = { data: d, total: 0, reunioes: 0, vendas: 0, cancelados: 0, emAtend: 0, aFazer: 0 };
-      map[d].total += 1;
-      if (r.status === "reuniao_feita") map[d].reunioes += 1;
-      if (r.status === "venda_feita") map[d].vendas += 1;
-      if (r.status === "cancelado") map[d].cancelados += 1;
-      if (r.status === "em_atendimento_closer") map[d].emAtend += 1;
-      if (r.status === "a_fazer") map[d].aFazer += 1;
+  // Vendas: aba real da planilha, filtrada por período via data_venda
+  const vendasFiltradas = useMemo(() => {
+    const today = todayStr();
+    return vendasTab.filter(v => {
+      const d = v.dataVenda;
+      if (filtroPeriodo === "DIARIO") return d === today;
+      if (filtroPeriodo === "MES") return d.startsWith(filtroMes);
+      if (filtroPeriodo === "DIA") return d === filtroDataEsp;
+      return true;
     });
-    return Object.values(map).sort((a, b) => b.data.localeCompare(a.data));
-  }, [filtradosPeriodo]);
+  }, [vendasTab, filtroPeriodo, filtroMes, filtroDataEsp]);
 
-  // Performance do Closer (within period)
-  const performanceCloser = useMemo(() => {
-    const map: Record<string, {
-      closer: string; total: number; atendimentos: number;
-      vendas: number; reunioes: number; cancelados: number;
-    }> = {};
-    filtradosPeriodo.forEach(r => {
-      const c = r.closer?.trim();
-      if (!c) return;
-      if (!map[c]) map[c] = { closer: c, total: 0, atendimentos: 0, vendas: 0, reunioes: 0, cancelados: 0 };
-      map[c].total += 1;
-      // atendimentos = ainda em andamento (em_atendimento_closer)
-      if (r.status === "em_atendimento_closer") map[c].atendimentos += 1;
-      if (r.status === "venda_feita") map[c].vendas += 1;
-      // reunioes = todos os registros onde o closer participou (em_atend + venda_feita)
-      if (r.status === "em_atendimento_closer" || r.status === "venda_feita") map[c].reunioes += 1;
-      if (r.status === "cancelado") map[c].cancelados += 1;
-    });
-    return Object.values(map).sort((a, b) => b.vendas - a.vendas);
-  }, [filtradosPeriodo]);
+  // Resumo Diário: aba real da planilha, filtrada por período via data
+  const resumoFiltrado = useMemo(() => {
+    const today = todayStr();
+    return resumoDiarioTab
+      .filter(r => {
+        const d = r.data;
+        if (filtroPeriodo === "DIARIO") return d === today;
+        if (filtroPeriodo === "MES") return d.startsWith(filtroMes);
+        if (filtroPeriodo === "DIA") return d === filtroDataEsp;
+        return true;
+      })
+      .sort((a, b) => b.data.localeCompare(a.data));
+  }, [resumoDiarioTab, filtroPeriodo, filtroMes, filtroDataEsp]);
 
   const pieData = useMemo(() =>
     STATUS_ORDER
@@ -164,6 +147,33 @@ const ComercialSalvadorContent = () => {
   );
 
   const reunioesFeitasTotal = statusCount["reuniao_feita"] + (statusCount["venda_feita"] ?? 0);
+
+  // KPIs Vendas (aba real)
+  const vendasReceita = useMemo(() => vendasFiltradas.reduce((s, v) => s + v.valorTotal, 0), [vendasFiltradas]);
+  const vendasAtivas = useMemo(() => vendasFiltradas.filter(v => !v.cancelada), [vendasFiltradas]);
+  const vendasTicketMedio = vendasAtivas.length > 0 ? vendasReceita / vendasAtivas.length : 0;
+
+  // KPIs Resumo (aba real)
+  const resumoTotais = useMemo(() => resumoFiltrado.reduce(
+    (acc, r) => ({
+      agendamentos: acc.agendamentos + r.agendamentos,
+      feitas: acc.feitas + r.feitas,
+      vendas: acc.vendas + r.vendas,
+      receita: acc.receita + r.receita,
+      canceladas: acc.canceladas + r.canceladas,
+    }),
+    { agendamentos: 0, feitas: 0, vendas: 0, receita: 0, canceladas: 0 }
+  ), [resumoFiltrado]);
+
+  // KPIs Performance (aba real)
+  const perfTotais = useMemo(() => performanceTab.reduce(
+    (acc, p) => ({
+      reunioes: acc.reunioes + p.reunioes,
+      vendas: acc.vendas + p.vendas,
+      receita: acc.receita + p.receita,
+    }),
+    { reunioes: 0, vendas: 0, receita: 0 }
+  ), [performanceTab]);
 
   const formatDate = (d: string) => {
     if (!d) return "—";
@@ -185,9 +195,9 @@ const ComercialSalvadorContent = () => {
 
   const ABAS: { key: AbaAtiva; label: string; count?: number }[] = [
     { key: "agendamentos", label: "Agendamentos", count: filtradosPeriodo.length },
-    { key: "vendas", label: "Vendas", count: vendas.length },
-    { key: "resumo", label: "Resumo Diário", count: resumoDiario.length },
-    { key: "performance", label: "Performance Closer", count: performanceCloser.length },
+    { key: "vendas", label: "Vendas", count: vendasFiltradas.length },
+    { key: "resumo", label: "Resumo Diário", count: resumoFiltrado.length },
+    { key: "performance", label: "Performance Closer", count: performanceTab.length },
   ];
 
   return (
@@ -518,33 +528,75 @@ const ComercialSalvadorContent = () => {
       {abaAtiva === "vendas" && (
         <div className="space-y-5">
           {/* KPIs Vendas */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <KpiCard title="Total Vendas" value={vendas.length} subtitle="Vendas fechadas no período" icon={ShoppingBag} variant="success" delay={0} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard title="Vendas Ativas" value={vendasAtivas.length} subtitle="No período" icon={ShoppingBag} variant="success" delay={0} />
+            <KpiCard title="Receita" value={formatCurrencyBR(vendasReceita)} subtitle="No período" icon={DollarSign} variant="success" delay={1} />
+            <KpiCard title="Ticket Médio" value={formatCurrencyBR(vendasTicketMedio)} subtitle="Por venda ativa" icon={TrendingUp} variant="info" delay={2} />
             <KpiCard
-              title="Closers com vendas"
-              value={new Set(vendas.map(v => v.closer).filter(Boolean)).size}
-              subtitle="Closers ativos no período"
-              icon={Users}
-              variant="info"
-              delay={1}
-            />
-            <KpiCard
-              title="Produtos vendidos"
-              value={new Set(vendas.map(v => v.produto).filter(Boolean)).size}
-              subtitle="Tipos de produto"
-              icon={BarChart2}
-              variant="default"
-              delay={2}
+              title="Canceladas"
+              value={vendasFiltradas.length - vendasAtivas.length}
+              subtitle={`de ${vendasFiltradas.length} total`}
+              icon={XCircle}
+              variant="warning"
+              delay={3}
             />
           </div>
+
+          {/* Gráfico Receita por Closer */}
+          {vendasAtivas.length > 0 && (() => {
+            const porCloser = Object.entries(
+              vendasAtivas.reduce<Record<string, { qtd: number; receita: number }>>((acc, v) => {
+                const c = v.closer || "Sem closer";
+                if (!acc[c]) acc[c] = { qtd: 0, receita: 0 };
+                acc[c].qtd += 1;
+                acc[c].receita += v.valorTotal;
+                return acc;
+              }, {})
+            )
+              .map(([closer, d]) => ({ closer, ...d }))
+              .sort((a, b) => b.receita - a.receita);
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <section className="glass-card p-4">
+                  <h3 className="font-heading font-bold text-foreground text-base mb-3">Vendas por Closer</h3>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={porCloser} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
+                        <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={120} />
+                        <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                        <Bar dataKey="qtd" name="Qtd Vendas" fill="hsl(160 70% 40%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+                <section className="glass-card p-4">
+                  <h3 className="font-heading font-bold text-foreground text-base mb-3">Receita por Closer</h3>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={porCloser} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
+                        <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={120} />
+                        <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} formatter={(v: number) => formatCurrencyBR(v)} />
+                        <Bar dataKey="receita" name="Receita" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </section>
+              </div>
+            );
+          })()}
 
           {/* Tabela Vendas */}
           <section className="glass-card p-4">
             <h3 className="font-heading font-bold text-foreground text-base mb-4">
               Vendas Realizadas
-              <span className="ml-2 text-xs text-muted-foreground font-normal">({vendas.length})</span>
+              <span className="ml-2 text-xs text-muted-foreground font-normal">({vendasFiltradas.length})</span>
             </h3>
-            {vendas.length === 0 ? (
+            {vendasFiltradas.length === 0 ? (
               <p className="text-muted-foreground text-sm text-center py-8">Nenhuma venda no período selecionado</p>
             ) : (
               <div className="overflow-x-auto">
@@ -552,32 +604,44 @@ const ComercialSalvadorContent = () => {
                   <thead>
                     <tr className="text-left text-muted-foreground border-b border-border">
                       <th className="py-2 pr-3 font-semibold">#</th>
-                      <th className="py-2 pr-3 font-semibold">Data Reunião</th>
+                      <th className="py-2 pr-3 font-semibold">Data Venda</th>
                       <th className="py-2 pr-3 font-semibold">Closer</th>
-                      <th className="py-2 pr-3 font-semibold">Loja</th>
-                      <th className="py-2 pr-3 font-semibold">Proprietário</th>
+                      <th className="py-2 pr-3 font-semibold">Empresa</th>
+                      <th className="py-2 pr-3 font-semibold">Cliente</th>
                       <th className="py-2 pr-3 font-semibold">Produto</th>
-                      <th className="py-2 pr-3 font-semibold">Agender</th>
-                      <th className="py-2 pr-3 font-semibold">Origem</th>
+                      <th className="py-2 pr-3 font-semibold">Mês Ref.</th>
+                      <th className="py-2 pr-3 font-semibold">Forma Pgto</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Valor</th>
+                      <th className="py-2 pr-3 font-semibold">Resultado</th>
+                      <th className="py-2 pr-3 font-semibold">Cancelada</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vendas.map((r, i) => (
-                      <tr key={r.id || i} className="border-b border-border/50 hover:bg-secondary/30">
+                    {vendasFiltradas.map((v, i) => (
+                      <tr key={v.id || i} className={`border-b border-border/50 hover:bg-secondary/30 ${v.cancelada ? "opacity-50" : ""}`}>
                         <td className="py-2 pr-3 text-muted-foreground tabular-nums">{i + 1}</td>
-                        <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{formatDate(r.dataReuniao)}</td>
-                        <td className="py-2 pr-3 text-foreground font-medium">{r.closer || "—"}</td>
-                        <td className="py-2 pr-3 text-foreground font-medium">{r.nomeLoja}</td>
-                        <td className="py-2 pr-3 text-muted-foreground">{r.proprietario}</td>
+                        <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{formatDate(v.dataVenda)}</td>
+                        <td className="py-2 pr-3 text-foreground font-medium">{v.closer || "—"}</td>
+                        <td className="py-2 pr-3 text-foreground">{v.empresa || "—"}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{v.cliente || "—"}</td>
                         <td className="py-2 pr-3">
-                          {r.produto ? (
+                          {v.produto ? (
                             <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md bg-success/15 text-success border border-success/30">
-                              {r.produto}
+                              {v.produto}
                             </span>
                           ) : "—"}
                         </td>
-                        <td className="py-2 pr-3 text-muted-foreground">{r.agender}</td>
-                        <td className="py-2 pr-3 text-muted-foreground">{r.origem || "—"}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{v.mesReferencia || "—"}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{v.formaPagamento || "—"}</td>
+                        <td className="py-2 pr-3 text-right font-semibold tabular-nums text-foreground">{v.valorTotal > 0 ? formatCurrencyBR(v.valorTotal) : "—"}</td>
+                        <td className="py-2 pr-3 text-muted-foreground">{v.resultado || "—"}</td>
+                        <td className="py-2 pr-3">
+                          {v.cancelada ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-destructive/15 text-destructive border border-destructive/30">Sim</span>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -585,34 +649,6 @@ const ComercialSalvadorContent = () => {
               </div>
             )}
           </section>
-
-          {/* Vendas por Closer */}
-          {vendas.length > 0 && (() => {
-            const porCloser = Object.entries(
-              vendas.reduce<Record<string, number>>((acc, v) => {
-                const c = v.closer || "Sem closer";
-                acc[c] = (acc[c] ?? 0) + 1;
-                return acc;
-              }, {})
-            ).sort((a, b) => b[1] - a[1]);
-
-            return (
-              <section className="glass-card p-4">
-                <h3 className="font-heading font-bold text-foreground text-base mb-3">Vendas por Closer</h3>
-                <div className="h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={porCloser.map(([closer, qtd]) => ({ closer, qtd }))} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
-                      <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={120} />
-                      <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="qtd" name="Vendas" fill="hsl(160 70% 40%)" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-            );
-          })()}
         </div>
       )}
 
@@ -621,40 +657,19 @@ const ComercialSalvadorContent = () => {
         <div className="space-y-5">
           {/* KPIs resumo */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <KpiCard title="Dias com atividade" value={resumoDiario.length} subtitle="No período" icon={CalendarDays} variant="info" delay={0} />
-            <KpiCard
-              title="Total agendamentos"
-              value={filtradosPeriodo.length}
-              subtitle="No período"
-              icon={CalendarCheck}
-              variant="default"
-              delay={1}
-            />
-            <KpiCard
-              title="Total reuniões"
-              value={resumoDiario.reduce((s, d) => s + d.reunioes + d.vendas, 0)}
-              subtitle="Reuniões + Vendas"
-              icon={Users}
-              variant="success"
-              delay={2}
-            />
-            <KpiCard
-              title="Total vendas"
-              value={resumoDiario.reduce((s, d) => s + d.vendas, 0)}
-              subtitle="Fechamentos"
-              icon={ShoppingBag}
-              variant="success"
-              delay={3}
-            />
+            <KpiCard title="Agendamentos" value={resumoTotais.agendamentos} subtitle="No período" icon={CalendarCheck} variant="info" delay={0} />
+            <KpiCard title="Feitas" value={resumoTotais.feitas} subtitle="Reuniões realizadas" icon={Users} variant="success" delay={1} />
+            <KpiCard title="Vendas" value={resumoTotais.vendas} subtitle="Fechamentos" icon={ShoppingBag} variant="success" delay={2} />
+            <KpiCard title="Receita" value={formatCurrencyBR(resumoTotais.receita)} subtitle="No período" icon={DollarSign} variant="success" delay={3} />
           </div>
 
           {/* Tabela Resumo */}
           <section className="glass-card p-4">
             <h3 className="font-heading font-bold text-foreground text-base mb-4">
               Resumo por Dia
-              <span className="ml-2 text-xs text-muted-foreground font-normal">({resumoDiario.length} dias)</span>
+              <span className="ml-2 text-xs text-muted-foreground font-normal">({resumoFiltrado.length} dias)</span>
             </h3>
-            {resumoDiario.length === 0 ? (
+            {resumoFiltrado.length === 0 ? (
               <p className="text-muted-foreground text-sm text-center py-8">Sem dados no período selecionado</p>
             ) : (
               <div className="overflow-x-auto">
@@ -662,51 +677,47 @@ const ComercialSalvadorContent = () => {
                   <thead>
                     <tr className="text-left text-muted-foreground border-b border-border">
                       <th className="py-2 pr-3 font-semibold">Data</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Total</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Reuniões</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Vendas</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Cancelados</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Agend.</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Auditadas</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Feitas</th>
                       <th className="py-2 pr-3 font-semibold text-right">Em Atend.</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Ag. Reag.</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Reagend.</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Cancel.</th>
                       <th className="py-2 pr-3 font-semibold text-right">A Fazer</th>
-                      <th className="py-2 pr-3 font-semibold text-right">% Conversão</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Vendas</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Receita</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {resumoDiario.map((dia, i) => {
-                      const conv = dia.total > 0 ? ((dia.reunioes + dia.vendas) / dia.total) * 100 : 0;
-                      return (
-                        <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
-                          <td className="py-2 pr-3 text-foreground font-medium whitespace-nowrap">{formatDate(dia.data)}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-foreground font-semibold">{dia.total}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{dia.reunioes}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["venda_feita"] }}>{dia.vendas}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{dia.cancelados}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{dia.emAtend}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{dia.aFazer}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
-                            <span className={conv >= 50 ? "text-success" : "text-muted-foreground"}>
-                              {conv.toFixed(0)}%
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {resumoFiltrado.map((dia, i) => (
+                      <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                        <td className="py-2 pr-3 text-foreground font-medium whitespace-nowrap">{formatDate(dia.data)}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-foreground font-semibold">{dia.agendamentos}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{dia.auditadas}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{dia.feitas}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{dia.emAtendimento}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{dia.aguardandoReagendamento}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{dia.reagendadas}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{dia.canceladas}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{dia.aFazer}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums font-bold" style={{ color: STATUS_COLORS["venda_feita"] }}>{dia.vendas}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums text-foreground font-semibold">{dia.receita > 0 ? formatCurrencyBR(dia.receita) : "—"}</td>
+                      </tr>
+                    ))}
                     {/* Totais */}
                     <tr className="border-t-2 border-border font-bold bg-secondary/30">
                       <td className="py-2 pr-3 text-foreground">TOTAL</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-foreground">{resumoDiario.reduce((s, d) => s + d.total, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{resumoDiario.reduce((s, d) => s + d.reunioes, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["venda_feita"] }}>{resumoDiario.reduce((s, d) => s + d.vendas, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{resumoDiario.reduce((s, d) => s + d.cancelados, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{resumoDiario.reduce((s, d) => s + d.emAtend, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{resumoDiario.reduce((s, d) => s + d.aFazer, 0)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums">
-                        {(() => {
-                          const tot = resumoDiario.reduce((s, d) => s + d.total, 0);
-                          const conv = resumoDiario.reduce((s, d) => s + d.reunioes + d.vendas, 0);
-                          return <span className={tot > 0 && (conv / tot) >= 0.5 ? "text-success" : "text-muted-foreground"}>{tot > 0 ? `${((conv / tot) * 100).toFixed(0)}%` : "—"}</span>;
-                        })()}
-                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-foreground">{resumoTotais.agendamentos}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{resumoFiltrado.reduce((s, d) => s + d.auditadas, 0)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{resumoTotais.feitas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{resumoFiltrado.reduce((s, d) => s + d.emAtendimento, 0)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{resumoFiltrado.reduce((s, d) => s + d.aguardandoReagendamento, 0)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{resumoFiltrado.reduce((s, d) => s + d.reagendadas, 0)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{resumoTotais.canceladas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{resumoFiltrado.reduce((s, d) => s + d.aFazer, 0)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums font-bold" style={{ color: STATUS_COLORS["venda_feita"] }}>{resumoTotais.vendas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-foreground">{formatCurrencyBR(resumoTotais.receita)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -720,53 +731,56 @@ const ComercialSalvadorContent = () => {
       {abaAtiva === "performance" && (
         <div className="space-y-5">
           {/* KPIs performance */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <KpiCard title="Closers ativos" value={performanceCloser.length} subtitle="No período" icon={Award} variant="info" delay={0} />
-            <KpiCard
-              title="Total vendas"
-              value={performanceCloser.reduce((s, c) => s + c.vendas, 0)}
-              subtitle="Fechamentos no período"
-              icon={ShoppingBag}
-              variant="success"
-              delay={1}
-            />
-            <KpiCard
-              title="Total atendimentos"
-              value={performanceCloser.reduce((s, c) => s + c.atendimentos, 0)}
-              subtitle="Em atend. + vendas"
-              icon={TrendingUp}
-              variant="default"
-              delay={2}
-            />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiCard title="Closers" value={performanceTab.length} subtitle="Na planilha" icon={Award} variant="info" delay={0} />
+            <KpiCard title="Reuniões" value={perfTotais.reunioes} subtitle="Total acumulado" icon={Users} variant="default" delay={1} />
+            <KpiCard title="Vendas" value={perfTotais.vendas} subtitle="Total acumulado" icon={ShoppingBag} variant="success" delay={2} />
+            <KpiCard title="Receita" value={formatCurrencyBR(perfTotais.receita)} subtitle="Total acumulado" icon={DollarSign} variant="success" delay={3} />
           </div>
 
-          {/* Gráfico Performance */}
-          {performanceCloser.length > 0 && (
-            <section className="glass-card p-4">
-              <h3 className="font-heading font-bold text-foreground text-base mb-3">Vendas por Closer</h3>
-              <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={performanceCloser} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
-                    <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={130} />
-                    <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                    <Bar dataKey="vendas" name="Vendas" fill="hsl(160 70% 40%)" radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="reunioes" name="Reuniões" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
+          {/* Gráficos Performance */}
+          {performanceTab.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <section className="glass-card p-4">
+                <h3 className="font-heading font-bold text-foreground text-base mb-3">Vendas por Closer</h3>
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={[...performanceTab].sort((a, b) => b.vendas - a.vendas)} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} allowDecimals={false} />
+                      <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={130} />
+                      <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
+                      <Bar dataKey="vendas" name="Vendas" fill="hsl(160 70% 40%)" radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="reunioes" name="Reuniões" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+              <section className="glass-card p-4">
+                <h3 className="font-heading font-bold text-foreground text-base mb-3">Receita por Closer</h3>
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={[...performanceTab].sort((a, b) => b.receita - a.receita)} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} />
+                      <YAxis dataKey="closer" type="category" stroke="hsl(var(--muted-foreground))" fontSize={9} width={130} />
+                      <RTooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} formatter={(v: number) => formatCurrencyBR(v)} />
+                      <Bar dataKey="receita" name="Receita" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </section>
+            </div>
           )}
 
           {/* Tabela Performance */}
           <section className="glass-card p-4">
             <h3 className="font-heading font-bold text-foreground text-base mb-4">
               Performance do Closer
-              <span className="ml-2 text-xs text-muted-foreground font-normal">({performanceCloser.length})</span>
+              <span className="ml-2 text-xs text-muted-foreground font-normal">({performanceTab.length})</span>
             </h3>
-            {performanceCloser.length === 0 ? (
-              <p className="text-muted-foreground text-sm text-center py-8">Nenhum closer com atendimento no período</p>
+            {performanceTab.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-8">Sem dados de performance</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -774,42 +788,49 @@ const ComercialSalvadorContent = () => {
                     <tr className="text-left text-muted-foreground border-b border-border">
                       <th className="py-2 pr-3 font-semibold">#</th>
                       <th className="py-2 pr-3 font-semibold">Closer</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Total</th>
                       <th className="py-2 pr-3 font-semibold text-right">Reuniões</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Em Atend.</th>
                       <th className="py-2 pr-3 font-semibold text-right">Vendas</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Cancelados</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Conv. Vendas</th>
-                      <th className="py-2 pr-3 font-semibold text-right">Conv. Reunião</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Receita</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Ticket Médio</th>
+                      <th className="py-2 pr-3 font-semibold text-right">Conv.</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {performanceCloser.map((c, i) => {
-                      const convVendas = c.total > 0 ? (c.vendas / c.total) * 100 : 0;
-                      // conversão de reunião: quantas reuniões (com closer) viraram venda
-                      const convReunioes = c.reunioes > 0 ? (c.vendas / c.reunioes) * 100 : 0;
-                      return (
-                        <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
-                          <td className="py-2 pr-3 text-muted-foreground tabular-nums">{i + 1}</td>
-                          <td className="py-2 pr-3 text-foreground font-semibold">{c.closer}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{c.total}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{c.reunioes}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["em_atendimento_closer"] }}>{c.atendimentos}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums font-bold" style={{ color: STATUS_COLORS["venda_feita"] }}>{c.vendas}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["cancelado"] }}>{c.cancelados}</td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
-                            <span className={convVendas >= 30 ? "text-success font-semibold" : "text-muted-foreground"}>
-                              {convVendas.toFixed(0)}%
-                            </span>
-                          </td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
-                            <span className={convReunioes >= 50 ? "text-success font-semibold" : "text-muted-foreground"}>
-                              {convReunioes.toFixed(0)}%
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {[...performanceTab]
+                      .sort((a, b) => b.vendas - a.vendas)
+                      .map((c, i) => {
+                        const conv = c.reunioes > 0 ? (c.vendas / c.reunioes) * 100 : 0;
+                        return (
+                          <tr key={i} className="border-b border-border/50 hover:bg-secondary/30">
+                            <td className="py-2 pr-3 text-muted-foreground tabular-nums">{i + 1}</td>
+                            <td className="py-2 pr-3 text-foreground font-semibold">{c.closer}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{c.reunioes}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums font-bold" style={{ color: STATUS_COLORS["venda_feita"] }}>{c.vendas}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums text-foreground font-semibold">{c.receita > 0 ? formatCurrencyBR(c.receita) : "—"}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">{c.ticketMedio > 0 ? formatCurrencyBR(c.ticketMedio) : "—"}</td>
+                            <td className="py-2 pr-3 text-right tabular-nums">
+                              <span className={conv >= 30 ? "text-success font-semibold" : "text-muted-foreground"}>
+                                {c.reunioes > 0 ? `${conv.toFixed(0)}%` : "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {/* Totais */}
+                    <tr className="border-t-2 border-border font-bold bg-secondary/30">
+                      <td colSpan={2} className="py-2 pr-3 text-foreground">TOTAL</td>
+                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["reuniao_feita"] }}>{perfTotais.reunioes}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums" style={{ color: STATUS_COLORS["venda_feita"] }}>{perfTotais.vendas}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-foreground">{formatCurrencyBR(perfTotais.receita)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
+                        {perfTotais.vendas > 0 ? formatCurrencyBR(perfTotais.receita / perfTotais.vendas) : "—"}
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        <span className={perfTotais.reunioes > 0 && (perfTotais.vendas / perfTotais.reunioes) >= 0.3 ? "text-success font-semibold" : "text-muted-foreground"}>
+                          {perfTotais.reunioes > 0 ? `${((perfTotais.vendas / perfTotais.reunioes) * 100).toFixed(0)}%` : "—"}
+                        </span>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
